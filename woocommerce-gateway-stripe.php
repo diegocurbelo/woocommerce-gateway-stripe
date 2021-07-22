@@ -146,6 +146,7 @@ function woocommerce_gateway_stripe() {
 				require_once dirname( __FILE__ ) . '/includes/class-wc-stripe-logger.php';
 				require_once dirname( __FILE__ ) . '/includes/class-wc-stripe-helper.php';
 				include_once dirname( __FILE__ ) . '/includes/class-wc-stripe-api.php';
+				require_once dirname( __FILE__ ) . '/includes/interfaces/interface-wc-stripe-gateway-upe-supported.php';
 				require_once dirname( __FILE__ ) . '/includes/abstracts/abstract-wc-stripe-payment-gateway.php';
 				require_once dirname( __FILE__ ) . '/includes/class-wc-stripe-webhook-state.php';
 				require_once dirname( __FILE__ ) . '/includes/class-wc-stripe-webhook-handler.php';
@@ -162,6 +163,7 @@ function woocommerce_gateway_stripe() {
 				require_once dirname( __FILE__ ) . '/includes/payment-methods/class-wc-gateway-stripe-alipay.php';
 				require_once dirname( __FILE__ ) . '/includes/payment-methods/class-wc-gateway-stripe-sepa.php';
 				require_once dirname( __FILE__ ) . '/includes/payment-methods/class-wc-gateway-stripe-multibanco.php';
+				require_once dirname( __FILE__ ) . '/includes/payment-methods/class-wc-gateway-stripe-upe.php';
 				require_once dirname( __FILE__ ) . '/includes/payment-methods/class-wc-stripe-payment-request.php';
 				require_once dirname( __FILE__ ) . '/includes/compat/class-wc-stripe-subs-compat.php';
 				require_once dirname( __FILE__ ) . '/includes/compat/class-wc-stripe-woo-compat-utils.php';
@@ -267,6 +269,7 @@ function woocommerce_gateway_stripe() {
 			 * @version 4.0.0
 			 */
 			public function add_gateways( $methods ) {
+				$methods[] = 'WC_Gateway_Stripe_UPE';
 				if ( class_exists( 'WC_Subscriptions_Order' ) && function_exists( 'wcs_create_renewal_order' ) ) {
 					$methods[] = 'WC_Stripe_Subs_Compat';
 					$methods[] = 'WC_Stripe_Sepa_Subs_Compat';
@@ -304,8 +307,10 @@ function woocommerce_gateway_stripe() {
 				unset( $sections['stripe_alipay'] );
 				unset( $sections['stripe_sepa'] );
 				unset( $sections['stripe_multibanco'] );
+				unset( $sections['stripe_upe'] );
 
 				$sections['stripe']            = 'Stripe';
+				$sections['stripe_upe']        = __( 'Stripe New Experience', 'woocommerce-gateway-stripe' );
 				$sections['stripe_bancontact'] = __( 'Stripe Bancontact', 'woocommerce-gateway-stripe' );
 				$sections['stripe_sofort']     = __( 'Stripe SOFORT', 'woocommerce-gateway-stripe' );
 				$sections['stripe_giropay']    = __( 'Stripe Giropay', 'woocommerce-gateway-stripe' );

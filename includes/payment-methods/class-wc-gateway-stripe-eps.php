@@ -10,7 +10,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * @since 4.1.0
  */
-class WC_Gateway_Stripe_Eps extends WC_Stripe_Payment_Gateway {
+class WC_Gateway_Stripe_Eps extends WC_Stripe_Payment_Gateway implements WC_Stripe_Gateway_UPE_Supported {
 	/**
 	 * Notices (array)
 	 *
