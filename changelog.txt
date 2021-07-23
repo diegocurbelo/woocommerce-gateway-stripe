@@ -1,6 +1,6 @@
 *** Changelog ***
 
-= 5.x.x - 2021-xx-xx =
+= 5.4.0 - 2021-xx-xx =
 * Fix - Do not ask for a Shipping Address if no Shipping Zone is defined.
 
 = 5.3.0 - 2021-07-21 =

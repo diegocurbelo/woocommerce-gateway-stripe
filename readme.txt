@@ -126,6 +126,9 @@ If you get stuck, you can ask for help in the Plugin Forum.
 
 == Changelog ==
 
+= 5.4.0 - 2021-xx-xx =
+* Fix - Do not ask for a Shipping Address if no Shipping Zone is defined.
+
 = 5.3.0 - 2021-07-21 =
 * Fix - Disable Payment Request Buttons when order has to be split into multiple packages because Payment Requests do not support that use case.
 * Tweak - Payment request button should guide users to login when necessary.
