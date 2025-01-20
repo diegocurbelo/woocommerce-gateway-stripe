@@ -17,12 +17,13 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 		'id'                            => 'pm_mock_payment_method_id',
 		'type'                          => WC_Stripe_Payment_Methods::CARD,
 		WC_Stripe_Payment_Methods::CARD => [
-			'brand'     => 'visa',
-			'network'   => 'visa',
-			'exp_month' => '7',
-			'exp_year'  => '2099',
-			'funding'   => 'credit',
-			'last4'     => '4242',
+			'brand'       => 'visa',
+			'network'     => 'visa',
+			'exp_month'   => '7',
+			'exp_year'    => '2099',
+			'funding'     => 'credit',
+			'last4'       => '4242',
+			'fingerprint' => 'Fxxxxxxxxxxxxxxx',
 		],
 	];
 
@@ -251,7 +252,7 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 		$this->assertTrue( $card_method->is_reusable() );
 		$this->assertEquals( WC_Stripe_Payment_Methods::CARD, $card_method->get_retrievable_type() );
 		$this->assertEquals(
-			'<strong>Test mode:</strong> use the test VISA card 4242424242424242 with any expiry date and CVC. Other payment methods may redirect to a Stripe test page to authorize payment. More test card numbers are listed <a href="https://stripe.com/docs/testing" target="_blank">here</a>.',
+			'<strong>Test mode:</strong> use the test VISA card 4242424242424242 with any expiry date and CVC. Other payment methods may redirect to a Stripe test page to authorize payment. More test card numbers are listed <a href="https://docs.stripe.com/testing" target="_blank">here</a>.',
 			$card_method->get_testing_instructions()
 		);
 
@@ -285,7 +286,7 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 		$this->assertTrue( $sepa_method->is_reusable() );
 		$this->assertEquals( WC_Stripe_Payment_Methods::SEPA_DEBIT, $sepa_method->get_retrievable_type() );
 		$this->assertEquals(
-			'<strong>Test mode:</strong> use the test account number AT611904300234573201. Other payment methods may redirect to a Stripe test page to authorize payment. More test card numbers are listed <a href="https://stripe.com/docs/testing?payment-method=sepa-direct-debit" target="_blank">here</a>.',
+			'<strong>Test mode:</strong> use the test account number AT611904300234573201. Other payment methods may redirect to a Stripe test page to authorize payment. More test card numbers are listed <a href="https://docs.stripe.com/testing?payment-method=sepa-direct-debit#non-card-payments" target="_blank">here</a>.',
 			$sepa_method->get_testing_instructions()
 		);
 
@@ -511,7 +512,7 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 				->getMock();
 		WC_Stripe::get_instance()->account->method( 'get_cached_account_data' )->willReturn(
 			[
-				'country' => 'US',
+				'country'          => 'US',
 				'default_currency' => WC_Stripe_Currency_Code::UNITED_STATES_DOLLAR,
 			]
 		);
@@ -655,7 +656,7 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 				case WC_Stripe_UPE_Payment_Method_CC::STRIPE_ID:
 					$card_payment_method_mock = $this->array_to_object( self::MOCK_CARD_PAYMENT_METHOD_TEMPLATE );
 					$token                    = $payment_method->create_payment_token_for_user( $user_id, $card_payment_method_mock );
-					$this->assertTrue( 'WC_Payment_Token_CC' === get_class( $token ) );
+					$this->assertTrue( WC_Stripe_Payment_Token_CC::class === get_class( $token ) );
 					$this->assertSame( $token->get_last4(), $card_payment_method_mock->card->last4 );
 					$this->assertSame( $token->get_token(), $card_payment_method_mock->id );
 					// Test display brand
@@ -674,24 +675,49 @@ class WC_Stripe_UPE_Payment_Method_Test extends WP_UnitTestCase {
 				case WC_Stripe_UPE_Payment_Method_Link::STRIPE_ID:
 					$link_payment_method_mock = $this->array_to_object( self::MOCK_LINK_PAYMENT_METHOD_TEMPLATE );
 					$token                    = $payment_method->create_payment_token_for_user( $user_id, $link_payment_method_mock );
-					$this->assertTrue( 'WC_Payment_Token_Link' === get_class( $token ) );
+					$this->assertTrue( WC_Payment_Token_Link::class === get_class( $token ) );
 					$this->assertSame( $token->get_email(), $link_payment_method_mock->link->email );
 					break;
 				case WC_Stripe_UPE_Payment_Method_Cash_App_Pay::STRIPE_ID:
 					$cash_app_payment_method_mock = $this->array_to_object( self::MOCK_CASH_APP_PAYMENT_METHOD_TEMPLATE );
 					$token                        = $payment_method->create_payment_token_for_user( $user_id, $cash_app_payment_method_mock );
-					$this->assertTrue( 'WC_Payment_Token_CashApp' === get_class( $token ) );
+					$this->assertTrue( WC_Payment_Token_CashApp::class === get_class( $token ) );
 					$this->assertSame( $token->get_cashtag(), $cash_app_payment_method_mock->cashapp->cashtag );
 					break;
 				default:
 					$sepa_payment_method_mock = $this->array_to_object( self::MOCK_SEPA_PAYMENT_METHOD_TEMPLATE );
 					$token                    = $payment_method->create_payment_token_for_user( $user_id, $sepa_payment_method_mock );
-					$this->assertTrue( 'WC_Payment_Token_SEPA' === get_class( $token ) );
+					$this->assertTrue( WC_Payment_Token_SEPA::class === get_class( $token ) );
 					$this->assertSame( $token->get_last4(), $sepa_payment_method_mock->sepa_debit->last4 );
 					$this->assertSame( $token->get_token(), $sepa_payment_method_mock->id );
 
 			}
 		}
+	}
+
+	/**
+	 * Test for `update_payment_token` method.
+	 *
+	 * @return void
+	 */
+	public function test_update_payment_token() {
+		$token = new WC_Stripe_Payment_Token_CC();
+		$token->set_expiry_month( '12' );
+		$token->set_expiry_year( '2024' );
+		$token->set_card_type( 'visa' );
+		$token->set_last4( '4242' );
+		$token->set_gateway_id( WC_Stripe_UPE_Payment_Gateway::ID );
+		$token->set_token( 'pm_1234' );
+		$token->set_user_id( 1 );
+		$token->set_fingerprint( 'Lstxxxx' );
+		$token->save();
+
+		$expected = self::MOCK_CARD_PAYMENT_METHOD_TEMPLATE['id'];
+
+		$payment_method = new WC_Stripe_UPE_Payment_Method_CC();
+		$actual         = $payment_method->update_payment_token( $token, $expected );
+
+		$this->assertSame( $expected, $actual->get_token() );
 	}
 
 	/**

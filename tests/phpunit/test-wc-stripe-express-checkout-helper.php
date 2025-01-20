@@ -16,11 +16,12 @@ class WC_Stripe_Express_Checkout_Helper_Test extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 
-		$stripe_settings                         = WC_Stripe_Helper::get_stripe_settings();
-		$stripe_settings['enabled']              = 'yes';
-		$stripe_settings['testmode']             = 'yes';
-		$stripe_settings['test_publishable_key'] = 'pk_test_key';
-		$stripe_settings['test_secret_key']      = 'sk_test_key';
+		$stripe_settings                                    = WC_Stripe_Helper::get_stripe_settings();
+		$stripe_settings['enabled']                         = 'yes';
+		$stripe_settings['testmode']                        = 'yes';
+		$stripe_settings['test_publishable_key']            = 'pk_test_key';
+		$stripe_settings['test_secret_key']                 = 'sk_test_key';
+		$stripe_settings['express_checkout_use_blocks_api'] = 'yes';
 		WC_Stripe_Helper::update_main_stripe_settings( $stripe_settings );
 	}
 
@@ -72,7 +73,7 @@ class WC_Stripe_Express_Checkout_Helper_Test extends WP_UnitTestCase {
 		if ( ! defined( 'WOOCOMMERCE_CHECKOUT' ) ) {
 			define( 'WOOCOMMERCE_CHECKOUT', true );
 		}
-		$original_gateways = WC()->payment_gateways()->payment_gateways;
+		$original_gateways                         = WC()->payment_gateways()->payment_gateways;
 		WC()->payment_gateways()->payment_gateways = [
 			'stripe' => new WC_Gateway_Stripe(),
 		];
@@ -191,5 +192,134 @@ class WC_Stripe_Express_Checkout_Helper_Test extends WP_UnitTestCase {
 		$wc_stripe_ece_helper = new WC_Stripe_Express_Checkout_Helper();
 		$checkout_data        = $wc_stripe_ece_helper->get_checkout_data();
 		$this->assertEmpty( $checkout_data['default_shipping_option'] );
+	}
+
+	/**
+	 * Test for is_authentication_required().
+	 */
+	public function test_is_authentication_required() {
+		$wc_stripe_ece_helper_mock = $this->createPartialMock(
+			WC_Stripe_Express_Checkout_Helper::class,
+			[
+				'is_account_creation_possible',
+			]
+		);
+		$wc_stripe_ece_helper_mock->expects( $this->any() )
+			->method( 'is_account_creation_possible' )
+			->willReturnOnConsecutiveCalls( true, false );
+
+		// Guest checkout is enabled.
+		update_option( 'woocommerce_enable_guest_checkout', 'yes' );
+		$this->assertFalse( $wc_stripe_ece_helper_mock->is_authentication_required() );
+
+		// Guest checkout is disabled, and account creation is possible.
+		update_option( 'woocommerce_enable_guest_checkout', 'no' );
+		$this->assertFalse( $wc_stripe_ece_helper_mock->is_authentication_required() );
+
+		// Guest checkout is disabled, and account creation is not possible.
+		update_option( 'woocommerce_enable_guest_checkout', 'no' );
+		$this->assertTrue( $wc_stripe_ece_helper_mock->is_authentication_required() );
+	}
+
+	/**
+	 * Test for is_account_creation_possible().
+	 */
+	public function test_is_account_creation_possible() {
+		$wc_stripe_ece_helper_mock = $this->createPartialMock(
+			WC_Stripe_Express_Checkout_Helper::class,
+			[
+				'has_subscription_product',
+			]
+		);
+		$wc_stripe_ece_helper_mock->expects( $this->any() )
+			->method( 'has_subscription_product' )
+			->willReturn( false );
+
+		// Account creation on checkout is enabled.
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'yes' );
+		$this->assertTrue( $wc_stripe_ece_helper_mock->is_account_creation_possible() );
+
+		// Account creation on checkout is disabled.
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'no' );
+		$this->assertFalse( $wc_stripe_ece_helper_mock->is_account_creation_possible() );
+
+		// Account creation on checkout is enabled for subscriptions, but no subscription in cart.
+		update_option( 'woocommerce_enable_signup_from_checkout_for_subscriptions', 'yes' );
+		$this->assertFalse( $wc_stripe_ece_helper_mock->is_account_creation_possible() );
+
+		//. Tests for when a subscription product is in the cart.
+		$wc_stripe_ece_helper_mock2 = $this->createPartialMock(
+			WC_Stripe_Express_Checkout_Helper::class,
+			[
+				'has_subscription_product',
+			]
+		);
+		$wc_stripe_ece_helper_mock2->expects( $this->any() )
+			->method( 'has_subscription_product' )
+			->willReturn( true );
+
+		// Account creation on checkout is disabled.
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'no' );
+		update_option( 'woocommerce_enable_signup_from_checkout_for_subscriptions', 'no' );
+		$this->assertFalse( $wc_stripe_ece_helper_mock2->is_account_creation_possible() );
+
+		// Account creation on checkout is enabled for subscriptions, with subscription in cart.
+		update_option( 'woocommerce_enable_signup_and_login_from_checkout', 'no' );
+		update_option( 'woocommerce_enable_signup_from_checkout_for_subscriptions', 'yes' );
+		$this->assertTrue( $wc_stripe_ece_helper_mock2->is_account_creation_possible() );
+	}
+
+	/**
+	 * Test for `get_normalized_postal_code`.
+	 *
+	 * @param string $postal_code Postal code.
+	 * @param string $country Country code.
+	 * @param string $expected Expected normalized postal code.
+	 * @return void
+	 * @dataProvider provide_test_get_normalized_postal_code
+	 */
+	public function test_get_normalized_postal_code( $postal_code, $country, $expected ) {
+		$wc_stripe_ece_helper = new WC_Stripe_Express_Checkout_Helper();
+		$this->assertEquals( $expected, $wc_stripe_ece_helper->get_normalized_postal_code( $postal_code, $country ) );
+	}
+
+	/**
+	 * Provider for `test_get_normalized_postal_code`.
+	 *
+	 * @return array
+	 */
+	public function provide_test_get_normalized_postal_code() {
+		return [
+			'GB country'           => [
+				'postal code' => 'SW1A 1AA',
+				'country'     => 'GB',
+				'expected'    => 'SW1A 1AA',
+			],
+			'GB country, redacted' => [
+				'postal code' => 'SW1A',
+				'country'     => 'GB',
+				'expected'    => 'SW1A ***',
+			],
+			'CA country'           => [
+				'postal code' => 'K1A   ',
+				'country'     => 'CA',
+				'expected'    => 'K1A***',
+			],
+			'US country'           => [
+				'postal code' => '12345',
+				'country'     => 'US',
+				'expected'    => '12345',
+			],
+		];
+	}
+
+	/**
+	 * Test for `use_blocks_api`.
+	 *
+	 * @return void
+	 */
+	public function test_use_blocks_api() {
+		$wc_stripe_ece_helper = new WC_Stripe_Express_Checkout_Helper();
+		$this->assertTrue( $wc_stripe_ece_helper->use_blocks_api() );
 	}
 }

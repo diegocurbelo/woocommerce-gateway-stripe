@@ -42,6 +42,7 @@ class WC_Stripe_Payment_Tokens {
 		add_filter( 'woocommerce_get_customer_payment_tokens', [ $this, 'woocommerce_get_customer_payment_tokens' ], 10, 3 );
 		add_filter( 'woocommerce_payment_methods_list_item', [ $this, 'get_account_saved_payment_methods_list_item' ], 10, 2 );
 		add_filter( 'woocommerce_get_credit_card_type_label', [ $this, 'normalize_sepa_label' ] );
+		add_filter( 'woocommerce_payment_token_class', [ $this, 'woocommerce_payment_token_class' ], 10, 2 );
 		add_action( 'woocommerce_payment_token_deleted', [ $this, 'woocommerce_payment_token_deleted' ], 10, 2 );
 		add_action( 'woocommerce_payment_token_set_default', [ $this, 'woocommerce_payment_token_set_default' ] );
 	}
@@ -112,7 +113,7 @@ class WC_Stripe_Payment_Tokens {
 	 * @return bool
 	 */
 	public static function customer_has_saved_methods( $customer_id ) {
-		$gateways = [ 'stripe', 'stripe_sepa' ];
+		$gateways = [ WC_Gateway_Stripe::ID, WC_Gateway_Stripe_Sepa::ID ];
 
 		if ( empty( $customer_id ) ) {
 			return false;
@@ -166,16 +167,16 @@ class WC_Stripe_Payment_Tokens {
 					$stored_tokens[ $token->get_token() ] = $token;
 				}
 
-				if ( 'stripe' === $gateway_id ) {
+				if ( WC_Gateway_Stripe::ID === $gateway_id ) {
 					$stripe_customer = new WC_Stripe_Customer( $customer_id );
 					$stripe_sources  = $stripe_customer->get_sources();
 
 					foreach ( $stripe_sources as $source ) {
 						if ( isset( $source->type ) && WC_Stripe_Payment_Methods::CARD === $source->type ) {
 							if ( ! isset( $stored_tokens[ $source->id ] ) ) {
-								$token = new WC_Payment_Token_CC();
+								$token = new WC_Stripe_Payment_Token_CC();
 								$token->set_token( $source->id );
-								$token->set_gateway_id( 'stripe' );
+								$token->set_gateway_id( WC_Gateway_Stripe::ID );
 
 								if ( WC_Stripe_Helper::is_card_payment_method( $source ) ) {
 									$token->set_card_type( strtolower( $source->card->brand ) );
@@ -184,32 +185,31 @@ class WC_Stripe_Payment_Tokens {
 									$token->set_expiry_year( $source->card->exp_year );
 								}
 
+								$token->set_fingerprint( $source->fingerprint );
 								$token->set_user_id( $customer_id );
 								$token->save();
 								$tokens[ $token->get_id() ] = $token;
 							} else {
 								unset( $stored_tokens[ $source->id ] );
 							}
+						} elseif ( ! isset( $stored_tokens[ $source->id ] ) && WC_Stripe_Payment_Methods::CARD === $source->object ) {
+							$token = new WC_Payment_Token_CC();
+							$token->set_token( $source->id );
+							$token->set_gateway_id( WC_Gateway_Stripe::ID );
+							$token->set_card_type( strtolower( $source->brand ) );
+							$token->set_last4( $source->last4 );
+							$token->set_expiry_month( $source->exp_month );
+							$token->set_expiry_year( $source->exp_year );
+							$token->set_user_id( $customer_id );
+							$token->save();
+							$tokens[ $token->get_id() ] = $token;
 						} else {
-							if ( ! isset( $stored_tokens[ $source->id ] ) && WC_Stripe_Payment_Methods::CARD === $source->object ) {
-								$token = new WC_Payment_Token_CC();
-								$token->set_token( $source->id );
-								$token->set_gateway_id( 'stripe' );
-								$token->set_card_type( strtolower( $source->brand ) );
-								$token->set_last4( $source->last4 );
-								$token->set_expiry_month( $source->exp_month );
-								$token->set_expiry_year( $source->exp_year );
-								$token->set_user_id( $customer_id );
-								$token->save();
-								$tokens[ $token->get_id() ] = $token;
-							} else {
-								unset( $stored_tokens[ $source->id ] );
-							}
+							unset( $stored_tokens[ $source->id ] );
 						}
 					}
 				}
 
-				if ( 'stripe_sepa' === $gateway_id ) {
+				if ( WC_Gateway_Stripe_Sepa::ID === $gateway_id ) {
 					$stripe_customer = new WC_Stripe_Customer( $customer_id );
 					$stripe_sources  = $stripe_customer->get_sources();
 
@@ -218,9 +218,10 @@ class WC_Stripe_Payment_Tokens {
 							if ( ! isset( $stored_tokens[ $source->id ] ) ) {
 								$token = new WC_Payment_Token_SEPA();
 								$token->set_token( $source->id );
-								$token->set_gateway_id( 'stripe_sepa' );
+								$token->set_gateway_id( WC_Gateway_Stripe_Sepa::ID );
 								$token->set_last4( $source->sepa_debit->last4 );
 								$token->set_user_id( $customer_id );
+								$token->set_fingerprint( $source->fingerprint );
 								$token->save();
 								$tokens[ $token->get_id() ] = $token;
 							} else {
@@ -272,7 +273,7 @@ class WC_Stripe_Payment_Tokens {
 					// - APM tokens from before Split PE was in place.
 					// - Non-credit card tokens using the sources API. Payments using these will fail with the PaymentMethods API.
 					if (
-						( 'stripe' === $token->get_gateway_id() && WC_Stripe_Payment_Methods::SEPA === $token->get_type() ) ||
+						( WC_Gateway_Stripe::ID === $token->get_gateway_id() && WC_Stripe_Payment_Methods::SEPA === $token->get_type() ) ||
 						! $this->is_valid_payment_method_id( $token->get_token(), $this->get_payment_method_type_from_token( $token ) )
 					) {
 						$deprecated_tokens[ $token->get_token() ] = $token;
@@ -301,6 +302,11 @@ class WC_Stripe_Payment_Tokens {
 				}
 			}
 
+			// Add SEPA if it is disabled and iDEAL is enabled. iDEAL tokens are saved as SEPA tokens.
+			if ( ! $gateway->payment_methods[ WC_Stripe_UPE_Payment_Method_Sepa::STRIPE_ID ]->is_enabled() && $gateway->payment_methods[ WC_Stripe_UPE_Payment_Method_Ideal::STRIPE_ID ]->is_enabled() ) {
+				$payment_methods[] = $customer->get_payment_methods( WC_Stripe_UPE_Payment_Method_Sepa::STRIPE_ID );
+			}
+
 			$payment_methods = array_merge( ...$payment_methods );
 
 			// Prevent unnecessary recursion, WC_Payment_Token::save() ends up calling 'woocommerce_get_customer_payment_tokens' in some cases.
@@ -321,7 +327,7 @@ class WC_Stripe_Payment_Tokens {
 				if (
 					! isset( $stored_tokens[ $payment_method->id ] ) &&
 					$this->is_valid_payment_method_id( $payment_method->id, $payment_method_type ) &&
-					( $this->is_valid_payment_method_type_for_gateway( $payment_method_type, $gateway_id ) || empty( $gateway_id ) )
+					( empty( $gateway_id ) || $this->is_valid_payment_method_type_for_gateway( $payment_method_type, $gateway_id ) )
 				) {
 					$token                      = $this->add_token_to_user( $payment_method, $customer );
 					$tokens[ $token->get_id() ] = $token;
@@ -392,7 +398,11 @@ class WC_Stripe_Payment_Tokens {
 				$item['method']['brand'] = esc_html__( 'Cash App Pay', 'woocommerce-gateway-stripe' );
 				break;
 			case WC_Stripe_Payment_Methods::LINK:
-				$item['method']['brand'] = esc_html__( 'Stripe Link', 'woocommerce-gateway-stripe' );
+				$item['method']['brand'] = sprintf(
+					/* translators: customer email */
+					esc_html__( 'Stripe Link (%s)', 'woocommerce-gateway-stripe' ),
+					esc_html( $payment_token->get_email() )
+				);
 				break;
 		}
 
@@ -424,9 +434,8 @@ class WC_Stripe_Payment_Tokens {
 				 * When all conditions are met, we don't want to delete the payment method from Stripe.
 				 * This is to avoid detaching the payment method from the live stripe account on non production environments.
 				 */
-				$settings = WC_Stripe_Helper::get_stripe_settings();
 				if (
-					'no' === $settings['testmode'] &&
+					WC_Stripe_Mode::is_live() &&
 					is_admin() &&
 					'production' !== wp_get_environment_type()
 				) {
@@ -434,10 +443,8 @@ class WC_Stripe_Payment_Tokens {
 				}
 
 				$stripe_customer->detach_payment_method( $token->get_token() );
-			} else {
-				if ( 'stripe' === $token->get_gateway_id() || 'stripe_sepa' === $token->get_gateway_id() ) {
-					$stripe_customer->delete_source( $token->get_token() );
-				}
+			} elseif ( WC_Gateway_Stripe::ID === $token->get_gateway_id() || WC_Gateway_Stripe_Sepa::ID === $token->get_gateway_id() ) {
+				$stripe_customer->delete_source( $token->get_token() );
 			}
 		} catch ( WC_Stripe_Exception $e ) {
 			WC_Stripe_Logger::log( 'Error: ' . $e->getMessage() );
@@ -459,10 +466,8 @@ class WC_Stripe_Payment_Tokens {
 				if ( WC_Stripe_UPE_Payment_Gateway::ID === $token->get_gateway_id() ) {
 					$stripe_customer->set_default_payment_method( $token->get_token() );
 				}
-			} else {
-				if ( 'stripe' === $token->get_gateway_id() || 'stripe_sepa' === $token->get_gateway_id() ) {
-					$stripe_customer->set_default_source( $token->get_token() );
-				}
+			} elseif ( WC_Gateway_Stripe::ID === $token->get_gateway_id() || WC_Gateway_Stripe_Sepa::ID === $token->get_gateway_id() ) {
+				$stripe_customer->set_default_source( $token->get_token() );
 			}
 		} catch ( WC_Stripe_Exception $e ) {
 			WC_Stripe_Logger::log( 'Error: ' . $e->getMessage() );
@@ -477,16 +482,16 @@ class WC_Stripe_Payment_Tokens {
 	 * @return bool                       True, if payment method type matches gateway, false if otherwise.
 	 */
 	private function is_valid_payment_method_type_for_gateway( $payment_method_type, $gateway_id ) {
-		$reusable_gateway = self::UPE_REUSABLE_GATEWAYS_BY_PAYMENT_METHOD[ $payment_method_type ];
-		return self::UPE_REUSABLE_GATEWAYS_BY_PAYMENT_METHOD[ $payment_method_type ] === $gateway_id;
+		$reusable_gateway = self::UPE_REUSABLE_GATEWAYS_BY_PAYMENT_METHOD[ $payment_method_type ] ?? null;
+		return $reusable_gateway === $gateway_id;
 	}
 
 	/**
 	 * Creates and add a token to an user, based on the PaymentMethod object.
 	 *
-	 * @param   array              $payment_method                              Payment method to be added.
-	 * @param   WC_Stripe_Customer $user                                        WC_Stripe_Customer we're processing the tokens for.
-	 * @return  WC_Payment_Token_CC|WC_Payment_Token_Link|WC_Payment_Token_SEPA The WC object for the payment token.
+	 * @param   object             $payment_method Payment method to be added.
+	 * @param   WC_Stripe_Customer $customer       WC_Stripe_Customer we're processing the tokens for.
+	 * @return  WC_Payment_Token   The WC object for the payment token.
 	 */
 	private function add_token_to_user( $payment_method, WC_Stripe_Customer $customer ) {
 		// Clear cached payment methods.
@@ -495,13 +500,22 @@ class WC_Stripe_Payment_Tokens {
 		$payment_method_type = $this->get_original_payment_method_type( $payment_method );
 		$gateway_id          = self::UPE_REUSABLE_GATEWAYS_BY_PAYMENT_METHOD[ $payment_method_type ];
 
+		$found_token = $this->get_duplicate_token( $payment_method, $customer->get_user_id(), $gateway_id );
+		if ( $found_token ) {
+			// Update the token with the new payment method ID.
+			$found_token->set_token( $payment_method->id );
+			$found_token->save();
+			return $found_token;
+		}
+
 		switch ( $payment_method_type ) {
 			case WC_Stripe_UPE_Payment_Method_CC::STRIPE_ID:
-				$token = new WC_Payment_Token_CC();
+				$token = new WC_Stripe_Payment_Token_CC();
 				$token->set_expiry_month( $payment_method->card->exp_month );
 				$token->set_expiry_year( $payment_method->card->exp_year );
 				$token->set_card_type( strtolower( $payment_method->card->display_brand ?? $payment_method->card->networks->preferred ?? $payment_method->card->brand ) );
 				$token->set_last4( $payment_method->card->last4 );
+				$token->set_fingerprint( $payment_method->card->fingerprint );
 				break;
 
 			case WC_Stripe_UPE_Payment_Method_Link::STRIPE_ID:
@@ -520,6 +534,7 @@ class WC_Stripe_Payment_Tokens {
 				$token = new WC_Payment_Token_SEPA();
 				$token->set_last4( $payment_method->sepa_debit->last4 );
 				$token->set_payment_method_type( $payment_method_type );
+				$token->set_fingerprint( $payment_method->sepa_debit->fingerprint );
 		}
 
 		$token->set_gateway_id( $gateway_id );
@@ -637,6 +652,50 @@ class WC_Stripe_Payment_Tokens {
 		}
 
 		return 0 === strpos( $payment_method_id, 'src_' ) && WC_Stripe_Payment_Methods::CARD === $payment_method_type;
+	}
+
+	/**
+	 * Searches for a duplicate token in the user's saved payment methods and returns it.
+	 *
+	 * @param $payment_method stdClass The payment method object.
+	 * @param $user_id int The user ID.
+	 * @param $gateway_id string The gateway ID.
+	 * @return WC_Payment_Token|null
+	 */
+	public static function get_duplicate_token( $payment_method, $user_id, $gateway_id ) {
+		// Using the base method instead of `WC_Payment_Tokens::get_customer_tokens` to avoid recursive calls to hooked filters and actions
+		$tokens = WC_Payment_Tokens::get_tokens(
+			[
+				'user_id'    => $user_id,
+				'gateway_id' => $gateway_id,
+				'limit'      => 100,
+			]
+		);
+		foreach ( $tokens as $token ) {
+			/**
+			 * Token object.
+			 *
+			 * @var WC_Payment_Token_CashApp|WC_Stripe_Payment_Token_CC|WC_Payment_Token_Link|WC_Payment_Token_SEPA $token
+			 */
+			if ( $token->is_equal_payment_method( $payment_method ) ) {
+				return $token;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Filters the payment token class to override the credit card class with the extension's version.
+	 *
+	 * @param string $class Payment token class.
+	 * @param string $type Token type.
+	 * @return string
+	 */
+	public function woocommerce_payment_token_class( $class, $type ) {
+		if ( WC_Payment_Token_CC::class === $class ) {
+			return WC_Stripe_Payment_Token_CC::class;
+		}
+		return $class;
 	}
 
 	/**

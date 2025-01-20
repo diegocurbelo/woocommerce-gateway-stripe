@@ -1,11 +1,12 @@
 /* global Stripe */
 import { __ } from '@wordpress/i18n';
-import { isLinkEnabled } from 'wcstripe/stripe-utils';
+import apiFetch from '@wordpress/api-fetch';
 import {
 	getExpressCheckoutData,
 	getExpressCheckoutAjaxURL,
 	getRequiredFieldDataFromCheckoutForm,
 } from 'wcstripe/express-checkout/utils';
+import { PAYMENT_METHOD_CASHAPP } from 'wcstripe/stripe-utils/constants';
 
 /**
  * Handles generic connections to the server and Stripe.
@@ -64,20 +65,9 @@ export default class WCStripeAPI {
 	 * @return {Object} The Stripe Object.
 	 */
 	getStripe() {
-		const {
-			key,
-			locale,
-			isUPEEnabled,
-			paymentMethodsConfig,
-		} = this.options;
+		const { key, locale } = this.options;
 		if ( ! this.stripe ) {
-			if ( isUPEEnabled && isLinkEnabled( paymentMethodsConfig ) ) {
-				this.stripe = this.createStripe( key, locale, [
-					'link_autofill_modal_beta_1',
-				] );
-			} else {
-				this.stripe = this.createStripe( key, locale );
-			}
+			this.stripe = this.createStripe( key, locale );
 		}
 		return this.stripe;
 	}
@@ -207,7 +197,7 @@ export default class WCStripeAPI {
 				return response.data.next_action.type;
 			}
 
-			if ( response.data.payment_type === 'cashapp' ) {
+			if ( response.data.payment_type === PAYMENT_METHOD_CASHAPP ) {
 				// Cash App Payments.
 				const returnURL = decodeURIComponent(
 					response.data.return_url
@@ -302,7 +292,8 @@ export default class WCStripeAPI {
 	 *
 	 * @param {string} redirectUrl The redirect URL, returned from the server.
 	 * @param {string} paymentMethodToSave The ID of a Payment Method if it should be saved (optional).
-	 * @return {string|true} A redirect URL on success, or `true` if no confirmation is needed.
+	 * @return {Object|true} An object containing the redirect URL on success and a flag indicating
+	 *   if the page is the Pay for order page, or `true` if no confirmation is needed.
 	 */
 	confirmIntent( redirectUrl, paymentMethodToSave ) {
 		const partials = redirectUrl.match(
@@ -546,6 +537,49 @@ export default class WCStripeAPI {
 			_wpnonce: getExpressCheckoutData( 'nonce' )?.pay_for_order,
 			order,
 			...paymentData,
+		} );
+	}
+
+	/**
+	 * Creates order based on Express Checkout ECE payment method.
+	 *
+	 * @param {Object} paymentData Order data.
+	 * @return {Promise} Promise for the request to the server.
+	 */
+	expressCheckoutECECreateOrderForBlocksAPI( paymentData ) {
+		return this.postToBlocksAPI( '/wc/store/v1/checkout', {
+			...getRequiredFieldDataFromCheckoutForm( paymentData ),
+		} );
+	}
+
+	/**
+	 * Pays for an order based on the Express Checkout payment method.
+	 *
+	 * @param {number} order The order ID.
+	 * @param {Object} paymentData Order data.
+	 * @return {Promise} Promise for the request to the server.
+	 */
+	expressCheckoutECEPayForOrderForBlocksAPI( order, paymentData ) {
+		return this.postToBlocksAPI( `/wc/store/v1/checkout/${ order }`, {
+			...paymentData,
+		} );
+	}
+
+	/**
+	 * Posts data to the Blocks API.
+	 *
+	 * @param {string} path The path to post to.
+	 * @param {Object} data The data to post.
+	 * @return {Promise} The promise for the request to the server.
+	 */
+	postToBlocksAPI( path, data ) {
+		return apiFetch( {
+			method: 'POST',
+			path,
+			headers: {
+				Nonce: getExpressCheckoutData( 'nonce' )?.wc_store_api,
+			},
+			data,
 		} );
 	}
 

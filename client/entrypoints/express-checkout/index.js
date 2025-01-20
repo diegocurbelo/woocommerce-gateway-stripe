@@ -19,12 +19,14 @@ import {
 	onClickHandler,
 	onCompletePaymentHandler,
 	onConfirmHandler,
+	onConfirmHandlerForBlocksAPI,
 	onReadyHandler,
 	shippingAddressChangeHandler,
 	shippingRateChangeHandler,
 } from 'wcstripe/express-checkout/event-handler';
 import { getStripeServerData } from 'wcstripe/stripe-utils';
 import { getAddToCartVariationParams } from 'wcstripe/utils';
+import 'wcstripe/express-checkout/compatibility/wc-order-attribution';
 import './styles.scss';
 
 jQuery( function ( $ ) {
@@ -103,13 +105,9 @@ jQuery( function ( $ ) {
 				}
 
 				return options.displayItems
-					.filter(
-						( i ) =>
-							i.label ===
-							__( 'Shipping', 'woocommerce-gateway-stripe' )
-					)
+					.filter( ( i ) => i.key && i.key === 'total_shipping' )
 					.map( ( i ) => ( {
-						id: `rate-${ i.label }`,
+						id: `rate-shipping`,
 						amount: i.amount,
 						displayName: i.label,
 					} ) );
@@ -237,7 +235,17 @@ jQuery( function ( $ ) {
 
 			eceButton.on( 'confirm', async ( event ) => {
 				const order = options.order ? options.order : 0;
-
+				if ( getExpressCheckoutData( 'use_blocks_api' ) ) {
+					return await onConfirmHandlerForBlocksAPI(
+						api,
+						api.getStripe(),
+						elements,
+						wcStripeECE.completePayment,
+						wcStripeECE.abortPayment,
+						event,
+						order
+					);
+				}
 				return await onConfirmHandler(
 					api,
 					api.getStripe(),
@@ -513,7 +521,8 @@ jQuery( function ( $ ) {
 							const needsShipping =
 								! wcStripeECE.paymentAborted &&
 								getExpressCheckoutData( 'product' )
-									.needs_shipping === response.needs_shipping;
+									.requestShipping ===
+									response.requestShipping;
 
 							if ( ! isDeposits && needsShipping ) {
 								elements.update( {
@@ -553,8 +562,8 @@ jQuery( function ( $ ) {
 									if (
 										! wcStripeECE.paymentAborted &&
 										getExpressCheckoutData( 'product' )
-											.needs_shipping ===
-											response.needs_shipping
+											.requestShipping ===
+											response.requestShipping
 									) {
 										elements.update( {
 											amount: response.total.amount,

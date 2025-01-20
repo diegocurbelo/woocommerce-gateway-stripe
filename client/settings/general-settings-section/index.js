@@ -10,6 +10,7 @@ import SectionFooter from './section-footer';
 import PaymentMethodsList from './payment-methods-list';
 import UpeToggleContext from 'wcstripe/settings/upe-toggle/context';
 import { useAccount } from 'wcstripe/data/account';
+import { useGetOrderedPaymentMethodIds } from 'wcstripe/data';
 import './styles.scss';
 
 const AccountRefreshingOverlay = styled.div`
@@ -30,27 +31,49 @@ const AccountRefreshingOverlay = styled.div`
 	}
 `;
 
-const GeneralSettingsSection = ( { onSaveChanges } ) => {
+const GeneralSettingsSection = ( {
+	onSaveChanges,
+	showLegacyExperienceTransitionNotice,
+} ) => {
 	const [ isChangingDisplayOrder, setIsChangingDisplayOrder ] = useState(
 		false
 	);
 	const { isUpeEnabled, setIsUpeEnabled } = useContext( UpeToggleContext );
 	const { isRefreshing } = useAccount();
+	const {
+		orderedPaymentMethodIds,
+		setOrderedPaymentMethodIds,
+	} = useGetOrderedPaymentMethodIds();
+
+	const [ initialOrder, setInitialOrder ] = useState( [] );
 
 	const onChangeDisplayOrder = ( isChanging, data = null ) => {
-		setIsChangingDisplayOrder( isChanging );
-
-		if ( data ) {
+		if ( isChanging ) {
+			// Store the initial order before entering reorder mode
+			setInitialOrder( [ ...orderedPaymentMethodIds ] );
+		} else if ( ! data ) {
+			// This is a cancel action - restore the initial order
+			if ( initialOrder.length > 0 ) {
+				setOrderedPaymentMethodIds( initialOrder );
+			}
+			setInitialOrder( [] );
+		} else {
+			// This is a save action
 			onSaveChanges( 'ordered_payment_method_ids', data );
+			setInitialOrder( [] );
 		}
+
+		setIsChangingDisplayOrder( isChanging );
 	};
 
 	return (
 		<>
-			<LegacyExperienceTransitionNotice
-				isUpeEnabled={ isUpeEnabled }
-				setIsUpeEnabled={ setIsUpeEnabled }
-			/>
+			{ showLegacyExperienceTransitionNotice && (
+				<LegacyExperienceTransitionNotice
+					isUpeEnabled={ isUpeEnabled }
+					setIsUpeEnabled={ setIsUpeEnabled }
+				/>
+			) }
 			<Card>
 				<LoadableSettingsSection numLines={ 30 }>
 					<SectionHeading
@@ -73,6 +96,7 @@ const GeneralSettingsSection = ( { onSaveChanges } ) => {
 						<PaymentMethodsList
 							isChangingDisplayOrder={ isChangingDisplayOrder }
 							onSaveChanges={ onSaveChanges }
+							onCancel={ () => onChangeDisplayOrder( false ) }
 						/>
 					</AccountRefreshingOverlay>
 					{ isUpeEnabled && <SectionFooter /> }

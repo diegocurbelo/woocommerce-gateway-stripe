@@ -97,7 +97,7 @@ class WC_Stripe_Webhook_State_Test extends WP_UnitTestCase {
 
 		// Headers
 		$this->request_headers = [
-			'USER-AGENT'       => 'Stripe/1.0 (+https://stripe.com/docs/webhooks)',
+			'USER-AGENT'       => 'Stripe/1.0 (+https://docs.stripe.com/webhooks)',
 			'CONTENT-TYPE'     => 'application/json; charset=utf-8',
 			'STRIPE-SIGNATURE' => 't=' . $timestamp . ',v1=' . $signature,
 		];
@@ -248,7 +248,7 @@ class WC_Stripe_Webhook_State_Test extends WP_UnitTestCase {
 
 		$this->set_valid_request_data();
 		$this->process_webhook();
-		$this->assertEquals( 'The webhook secret is not set in the store', WC_Stripe_Webhook_State::get_last_error_reason() );
+		$this->assertEquals( 'The webhook secret is not set in the store. Please configure the webhooks', WC_Stripe_Webhook_State::get_last_error_reason() );
 	}
 
 	// Test failure reason: invalid signature.
