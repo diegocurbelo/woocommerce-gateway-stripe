@@ -99,7 +99,7 @@ class WC_Stripe_Payment_Tokens {
 
 		//phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash
 		$token = \WC_Payment_Tokens::get( wc_clean( $request[ $token_request_key ] ) );
-
+		error_log( '$token: ' . print_r( $token, true ) );
 		// If the token doesn't belong to this gateway or the current user it's invalid.
 		if ( ! $token || $payment_method !== $token->get_gateway_id() || $token->get_user_id() !== get_current_user_id() ) {
 			return null;
@@ -357,11 +357,13 @@ class WC_Stripe_Payment_Tokens {
 			// Remove the payment methods that no longer exist in Stripe's side.
 			foreach ( $stored_tokens as $token ) {
 				unset( $tokens[ $token->get_id() ] );
+				xdebug_break();
 				$token->delete();
 			}
 
 			// Remove the APM tokens from before Split PE was in place.
 			foreach ( $deprecated_tokens as $token ) {
+				xdebug_break();
 				unset( $tokens[ $token->get_id() ] );
 				$token->delete();
 			}
@@ -520,6 +522,7 @@ class WC_Stripe_Payment_Tokens {
 	 * @param   WC_Stripe_Customer $customer       WC_Stripe_Customer we're processing the tokens for.
 	 * @return  WC_Payment_Token   The WC object for the payment token.
 	 */
+	// se podria usar este metodo pero es privado
 	private function add_token_to_user( $payment_method, WC_Stripe_Customer $customer ) {
 		// Clear cached payment methods.
 		$customer->clear_cache();

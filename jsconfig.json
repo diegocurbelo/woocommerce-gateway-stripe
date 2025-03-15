@@ -1,0 +1,9 @@
+{
+    "base": ".",
+    "compilerOptions": {
+        "paths": {
+            "wcstripe/*":["./client/*"]
+        }
+    },
+    "exclude": ["node_modules"]
+}

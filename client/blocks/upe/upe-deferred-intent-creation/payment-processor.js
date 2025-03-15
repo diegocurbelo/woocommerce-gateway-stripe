@@ -256,6 +256,7 @@ const PaymentProcessor = ( {
 								save_payment_method: shouldSavePayment
 									? 'yes'
 									: 'no',
+								mycustomdata: 'value',
 								// The billing information here is relevant to properly create the Stripe Customer object.
 								billing_email: billingAddress.email,
 								billing_first_name: billingAddress.first_name,

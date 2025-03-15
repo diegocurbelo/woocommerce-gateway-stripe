@@ -448,6 +448,7 @@ class WC_Stripe_UPE_Payment_Gateway extends WC_Gateway_Stripe {
 		$stripe_params['createSetupIntentNonce']           = wp_create_nonce( 'wc_stripe_create_setup_intent_nonce' );
 		$stripe_params['createAndConfirmSetupIntentNonce'] = wp_create_nonce( 'wc_stripe_create_and_confirm_setup_intent_nonce' );
 		$stripe_params['updateFailedOrderNonce']           = wp_create_nonce( 'wc_stripe_update_failed_order_nonce' );
+		$stripe_params['createCheckoutSessionNonce']       = wp_create_nonce( 'wc_stripe_create_bacs_checkout_session_nonce' );
 		$stripe_params['paymentMethodsConfig']             = $this->get_enabled_payment_method_config();
 		$stripe_params['genericErrorMessage']              = __( 'There was a problem processing the payment. Please check your email inbox and refresh the page to try again.', 'woocommerce-gateway-stripe' );
 		$stripe_params['accountDescriptor']                = $this->statement_descriptor;
@@ -727,6 +728,7 @@ class WC_Stripe_UPE_Payment_Gateway extends WC_Gateway_Stripe {
 			return $this->process_change_subscription_payment_method( $order_id );
 		}
 
+		// si el payment method estaria asociado a un usuario iriamos por aqui
 		if ( $this->is_using_saved_payment_method() ) {
 			return $this->process_payment_with_saved_payment_method( $order_id );
 		}
@@ -1113,6 +1115,7 @@ class WC_Stripe_UPE_Payment_Gateway extends WC_Gateway_Stripe {
 	 * @param bool $can_retry Should we retry on fail.
 	 */
 	public function process_payment_with_saved_payment_method( $order_id, $can_retry = true ) {
+		error_log( 'process_payment_with_saved_payment_method' );
 		try {
 			$order = wc_get_order( $order_id );
 
@@ -1120,7 +1123,9 @@ class WC_Stripe_UPE_Payment_Gateway extends WC_Gateway_Stripe {
 				return $this->process_pre_order( $order_id );
 			}
 
-			$token                   = WC_Stripe_Payment_Tokens::get_token_from_request( $_POST );
+			// aqui esta el problema, se está sacando el token del request
+			$token = WC_Stripe_Payment_Tokens::get_token_from_request( $_POST );
+			xdebug_break();
 			$payment_method          = $this->stripe_request( 'payment_methods/' . $token->get_token(), [], null, 'GET' );
 			$prepared_payment_method = $this->prepare_payment_method( $payment_method );
 

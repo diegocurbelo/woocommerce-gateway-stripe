@@ -40,10 +40,10 @@ class WC_Payment_Token_Bacs_Debit extends WC_Payment_Token implements WC_Stripe_
 	 * @return bool
 	 */
 	public function is_equal_payment_method( $payment_method ): bool {
-		if ( WC_Stripe_Payment_Methods::BACS_DEBIT === $payment_method->type
-			&& ( $payment_method->bacs_debit->fingerprint ?? null ) === $this->get_fingerprint() ) {
-			return true;
-		}
+		// if ( WC_Stripe_Payment_Methods::BACS_DEBIT === $payment_method->type
+		// 	&& ( $payment_method->bacs_debit->fingerprint ?? null ) === $this->get_fingerprint() ) {
+		// 	return true;
+		// }
 
 		return false;
 	}
