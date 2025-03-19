@@ -118,6 +118,6 @@ If you get stuck, you can ask for help in the [Plugin Forum](https://wordpress.o
 * Update - Enable/disable Amazon Pay by adding/removing it from the enabled payment methods list.
 * Add - Add ACSS payment tokenization.
 * Dev - Fetch Stripe settings with Stripe configuration API
-* Add - Hook up Amazon Pay configuration
+* Add - Hook up payment methods configuration.
 
 [See changelog for all versions](https://raw.githubusercontent.com/woocommerce/woocommerce-gateway-stripe/trunk/changelog.txt).
