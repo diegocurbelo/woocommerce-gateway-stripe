@@ -2,17 +2,18 @@ name: Scheduled Weekly QIT
 description: Builds a package and runs the QIT tests.
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: '0 0 * * 1' # At 00:00 on Monday
 
 jobs:
-  
+
   build-project:
     name: Build package
     uses: ./.github/workflows/build-upload-zip.yml
     with:
       artifact: 'weekly-test-package'
-  
+
   qit-tests:
     name: Run QIT
     needs: build-project

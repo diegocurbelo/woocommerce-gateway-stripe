@@ -1,4 +1,4 @@
-name: Build nad Upload Package
+name: Build and Upload Package
 
 on:
   workflow_call:
@@ -6,12 +6,12 @@ on:
       artifact:
         type: string
         default: 'woocommerce-gateway-stripe'
-  
+
 jobs:
   build_project:
     name: Build and upload
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
