@@ -46,7 +46,7 @@ jobs:
           webhook-type: webhook-trigger
           payload: |
             status: "failure"
-            workflowName: "$GITHUB_WORKFLOW"
-            workflowUrl: "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            workflowName: "${{ github.workflow }}"
+            workflowUrl: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             message: "Scheduled workflow $GITHUB_WORKFLOW with run ID $GITHUB_RUN_ID failed."
 
