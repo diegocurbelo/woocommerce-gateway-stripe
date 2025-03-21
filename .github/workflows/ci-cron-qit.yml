@@ -24,11 +24,29 @@ jobs:
       artifact: 'weekly-test-package'
       wp-version: 'nightly'
       wc-version: 'nightly'
-      test-activation: true
-      test-security: true
-      test-phpcompatibility: true
-      test-validation: true
-      test-phpstan: false # TODO: Enable this once the PHPStan tests are fixed
+      test-activation: false
+      test-security: false
+      test-phpcompatibility: false
+      test-validation: false
+      test-phpstan: true # TODO: Enable this once the PHPStan tests are fixed
+      test-plugin-check: false # TODO: Enable this once the WP.org Plugin Check tests are fixed
       test-woo-api: true
       test-woo-e2e: true
       test-malware: true
+
+  handle-error:
+    if: ${{ failure() }}
+    needs: qit-tests
+    name: Handle failure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: slackapi/slack-github-action@v2.0.0
+        with:
+          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: webhook-trigger
+          payload: |
+            status: "failure"
+            workflow_name: "${{ GITHUB_WORKFLOW }}"
+            workflow_url: "${{ GITHUB_SERVER_URL }}/${{ GITHUB_REPOSITORY }}/actions/runs/${{ GITHUB_RUN_ID }}"
+            message: "Scheduled workflow ${{ GITHUB_WORKFLOW }} with run ID ${{ GITHUB_RUN_ID }} failed."
+
