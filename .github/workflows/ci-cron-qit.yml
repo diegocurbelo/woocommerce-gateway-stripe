@@ -45,7 +45,7 @@ jobs:
           webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
           webhook-type: webhook-trigger
           payload: |
-            icon: ":workflow-failed"
+            icon: ":workflow-failed:"
             status: "failed"
             workflowName: "${{ github.workflow }}"
             workflowUrl: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
