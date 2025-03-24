@@ -39,14 +39,11 @@ jobs:
     needs: qit-tests
     name: Handle failure
     runs-on: ubuntu-latest
+    env:
+        SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
-      - uses: slackapi/slack-github-action@v2.0.0
+      - uses: act10ns/slack@v2
         with:
-          webhook: ${{ secrets.SLACK_WEBHOOK_URL }}
-          webhook-type: webhook-trigger
-          payload: |
-            status: "failure"
-            workflowName: "${{ github.workflow }}"
-            workflowUrl: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            message: "Scheduled workflow $GITHUB_WORKFLOW with run ID $GITHUB_RUN_ID failed."
-
+          status: failure
+          message: "Workflow <{{workflowUrl}}|{{workflow}}> with run ID <{{workflowRunUrl}}|{{runId}}> failed."
+  
