@@ -1,4 +1,4 @@
-name: Merge to Develop CI
+name: Post PR Merge QIT
 
 on:
   pull_request:
