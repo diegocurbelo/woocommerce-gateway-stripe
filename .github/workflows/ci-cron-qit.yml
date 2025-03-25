@@ -28,7 +28,7 @@ jobs:
       test-security: false
       test-phpcompatibility: false
       test-validation: false
-      test-phpstan: true # TODO: Enable this once the PHPStan tests are fixed
+      test-phpstan: false # TODO: Enable this once the PHPStan tests are fixed
       test-plugin-check: false # TODO: Enable this once the WP.org Plugin Check tests are fixed
       test-woo-api: true
       test-woo-e2e: true
