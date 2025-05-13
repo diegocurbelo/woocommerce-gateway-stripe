@@ -4,7 +4,7 @@ Tags: credit card, stripe, payments, woocommerce, automattic
 Requires at least: 6.5
 Tested up to: 6.8.1
 Requires PHP: 7.4
-Stable tag: 9.4.1
+Stable tag: 5.4.0
 License: GPLv3
 License URI: https://www.gnu.org/licenses/gpl-3.0.html
 Attributions: thorsten-stripe
@@ -176,7 +176,7 @@ If you get stuck, you can ask for help in the [Plugin Forum](https://wordpress.o
 * Dev - Introduce new payment method constants for the express methods: Google Pay, Apple Pay, Link, and Amazon Pay (backend version)
 * Dev - Improves how we handle express payment method titles by introducing new constants and methods to replace duplicate code.
 
-= 9.6.0 - xxxx-xx-xx =
+= 5.5.0 - xxxx-xx-xx =
 
 * Update - Remove BACS from the unsupported 'change payment method for subscription' page.
 * Fix - Fix payment method title display when new payment settings experience is enabled
